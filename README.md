@@ -1,5 +1,8 @@
 # spotify-download-python
 Download songs from spotify playlist using python 
 
-# Need to download yt-dlp package
+# Download
+```
+wget https://raw.githubusercontent.com/LucasF-coder/spotify-download-python/main/main.py
 pip install yt-dlp
+```

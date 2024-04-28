@@ -8,6 +8,7 @@ from yt_dlp import YoutubeDL
 # Need to use Spotify API
 SPOTIFY_CLIENT_ID = "YOUR_SPOTIFY_CLIENT_ID"
 SPOTIFY_CLIENT_SECRET = "YOUR_SPOTIFY_CLIENT_SECRET"
+MAX_SONGS = 100
 
 def clear_name(name):
     name = name.replace(' ', '_').replace('"', "'")
@@ -24,7 +25,7 @@ def get_spotify_token():
         "client_id": SPOTIFY_CLIENT_ID,
         "client_secret": SPOTIFY_CLIENT_SECRET
     }
-    response = requests.post(url, headers=headers, data=data)
+    response = requests.post(url, headers=headers, data=data, timeout=10)
     if response.status_code == 200:
         token_data = response.json()
         return token_data.get("access_token")
@@ -36,7 +37,7 @@ def get_playlist_json(token, playlist_id):
     headers = {
         "Authorization": f"Bearer {token}"
     }
-    response = requests.get(f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks", headers=headers)
+    response = requests.get(f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks", headers=headers, timeout=10)
     if response.status_code == 200:
         return response.json()
     else:
@@ -45,7 +46,7 @@ def get_playlist_json(token, playlist_id):
 
 def download_mp3(url, name, path=""):
     print("Downloading: " + name)
-    mp3 = requests.get(url)
+    mp3 = requests.get(url, timeout=10)
     path = path.replace(" ", "")
     if mp3.encoding is None:
         return print("Unable to download: " + name)
@@ -87,21 +88,31 @@ if __name__ == "__main__":
     path = input("PATH:")
     if "spotify.com/playlist/" in search:
         search = search.split("playlist/")[1].split("?")[0]
+    else:
+        print("Invalid input. Please provide a Spotify playlist ID or URL.")
+        sys.exit(1)
+
     token = get_spotify_token()
     if token:
         playlist = get_playlist_json(token, search)
         if playlist:
-            songs = [(item["track"]["name"], item["track"]["artists"][0]["name"]) for item in playlist.get("items", [])]
-            print(f"Downloading {len(songs)} songs")
-            threads = []
-            for song in songs:
-                th = threading.Thread(target=start, args=[song[0], song[1], path])
-                th.start()
-                threads.append(th)
-            for th in threads:
-                th.join()
-            print("Script finished")
+            if "tracks" in playlist:
+                songs = [(item["track"]["name"], item["track"]["artists"][0]["name"]) for item in playlist.get("items", [])]
+                print(f"Downloading {len(songs)} songs")
+                if len(songs) > MAX_SONGS:
+                    print(f"Warning: {len(songs)} songs found, only downloading the first {MAX_SONGS}.")
+                    songs = songs[:MAX_SONGS]
+                threads = []
+                for song in songs:
+                    th = threading.Thread(target=start, args=[song[0], song[1], path])
+                    th.start()
+                    threads.append(th)
+                for th in threads:
+                    th.join()
+                print("Script finished")
+            else:
+                print("Playlist not found")
         else:
-            print("Playlist not found")
+            print("An error occurred while trying to get the playlist data")
     else:
         print("An error occurred while trying to get the token")
